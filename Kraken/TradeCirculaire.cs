@@ -31,6 +31,14 @@ namespace Kraken
                 }
             }
         }
+
+        internal Richesse GainFee
+        {
+            get
+            {
+                return new Richesse(InvestissementM1.Quantite * (PourcentageGain - 0.75) / 100, InvestissementM1.Monnaie);
+            }
+        }
         internal double PourcentageGain
         {
             get
@@ -68,7 +76,7 @@ namespace Kraken
 
         public override string ToString()
         {
-            return InvestissementM1 + " --> " + EtapeM2 + " --> " + EtapeM3 + " --> " + ObjectifM1;
+            return InvestissementM1 + " --> " + EtapeM2 + " --> " + EtapeM3 + " --> " + ObjectifM1 + " gain : " + Gain + " soit " + PourcentageGain + " %";
         }
     }
 }

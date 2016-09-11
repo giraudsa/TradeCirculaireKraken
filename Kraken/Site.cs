@@ -14,6 +14,9 @@ namespace Kraken
         internal static KrakenClient client = new KrakenClient();
 
         private Dictionary<Monnaie, Richesse> gains = new Dictionary<Monnaie, Richesse>();
+        private Dictionary<Monnaie, Richesse> gainsFee = new Dictionary<Monnaie, Richesse>();
+        private List<TradeCirculaire> transactions = new List<TradeCirculaire>();
+        private List<TradeCirculaire> transactionsFee = new List<TradeCirculaire>();
         private InterchangableBiKeyDictionnary<Monnaie, ValeurEchange> BaseEtQuoteToVe { get; }
         private HashSet<Monnaie> monnaieTradable { get; } = new HashSet<Monnaie>();
         internal List<ValeurEchange> pairs { get; } = new List<ValeurEchange>();
@@ -25,6 +28,42 @@ namespace Kraken
             {
                 if (gains.Count == 0) Console.WriteLine("Rien de gagné jusqu'à présent :(");
                 foreach(Richesse richesse in gains.Values)
+                {
+                    Console.WriteLine(richesse);
+                }
+            }
+        }
+
+        internal void WriteTransactions()
+        {
+            lock (transactions)
+            {
+                if (transactions.Count == 0) Console.WriteLine("pas de transaction jusqu'à présent :(");
+                foreach (TradeCirculaire trade in transactions)
+                {
+                    Console.WriteLine(trade);
+                }
+            }
+        }
+
+        internal void WriteTransactionsFee()
+        {
+            lock (transactionsFee)
+            {
+                if (transactionsFee.Count == 0) Console.WriteLine("pas de transaction jusqu'à présent :(");
+                foreach (TradeCirculaire trade in transactionsFee)
+                {
+                    Console.WriteLine(trade);
+                }
+            }
+        }
+
+        internal void WriteGainsWithFee()
+        {
+            lock (gainsFee)
+            {
+                if (gainsFee.Count == 0) Console.WriteLine("Rien de gagné jusqu'à présent :(");
+                foreach (Richesse richesse in gainsFee.Values)
                 {
                     Console.WriteLine(richesse);
                 }
@@ -126,20 +165,33 @@ namespace Kraken
             {
                 if (trade != null && trade.Gain.Quantite > 0)
                 {
-                    AjouteGain(trade.Gain);
-                    Console.Out.WriteLine(trade + " gain : " + trade.Gain + " soit " + trade.PourcentageGain + "%");
+                    AjouteGain(trade.Gain, gains);
+                    AjouteTrade(trade, transactions);
+                    if(trade.GainFee.Quantite > 0)
+                    {
+                        AjouteGain(trade.GainFee, gainsFee);
+                        AjouteTrade(trade, transactionsFee);
+                    }
                 }
             }
         }
 
-        private void AjouteGain(Richesse gain)
+        private void AjouteTrade(TradeCirculaire trade, List<TradeCirculaire> liste)
         {
-            lock (gains)
+            lock (liste)
+            {
+                liste.Add(trade);
+            }
+        }
+
+        private void AjouteGain(Richesse gain, Dictionary<Monnaie, Richesse> dico)
+        {
+            lock (dico)
             {
                 Richesse dejaLa = null;
-                if (!gains.TryGetValue(gain.Monnaie, out dejaLa))
-                    gains.Add(gain.Monnaie, gain);
-                else gains[gain.Monnaie] = dejaLa + gain;
+                if (!dico.TryGetValue(gain.Monnaie, out dejaLa))
+                    dico.Add(gain.Monnaie, gain);
+                else dico[gain.Monnaie] = dejaLa + gain;
             }
         }
 
