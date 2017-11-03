@@ -132,12 +132,12 @@ namespace Kraken
             var np = nonce + Convert.ToChar(0) + props;
 
             var pathBytes = Encoding.UTF8.GetBytes(path);
-            var hash256Bytes = sha256_hash(np);
+            var hash256Bytes = Sha256_hash(np);
             var z = new byte[pathBytes.Count() + hash256Bytes.Count()];
             pathBytes.CopyTo(z, 0);
             hash256Bytes.CopyTo(z, pathBytes.Count());
 
-            var signature = getHash(base64DecodedSecred, z);
+            var signature = GetHash(base64DecodedSecred, z);
 
             webRequest.Headers.Add("API-Sign", Convert.ToBase64String(signature));
 
@@ -807,7 +807,7 @@ namespace Kraken
 
         #region Helper methods
 
-        private byte[] sha256_hash(String value)
+        private byte[] Sha256_hash(String value)
         {
             using (SHA256 hash = SHA256Managed.Create())
             {
@@ -819,7 +819,7 @@ namespace Kraken
             }
         }
 
-        private byte[] getHash(byte[] keyByte, byte[] messageBytes)
+        private byte[] GetHash(byte[] keyByte, byte[] messageBytes)
         {
             using (var hmacsha512 = new HMACSHA512(keyByte))
             {

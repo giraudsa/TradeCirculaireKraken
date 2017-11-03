@@ -10,6 +10,10 @@ namespace Kraken
 {
     class Monnaie
     {
+        internal static Monnaie EURO;
+        internal static Monnaie USD;
+
+        private readonly static Dictionary<string, Monnaie> monnaies = new Dictionary<string, Monnaie>();
 
         internal string NomId { get; } //ex : XETH
         internal string Nom { get; } //ex : ETH
@@ -22,6 +26,21 @@ namespace Kraken
             Nom = (string)jsonObject["altname"];
             Decimal = ((JsonNumber)jsonObject["decimals"]).ToInt32();
             DisplayDecimals = ((JsonNumber)jsonObject["display_decimals"]).ToInt32();
+            switch(Nom){
+                case "EUR":
+                    EURO = this;
+                    break;
+                case "USD":
+                    USD = this;
+                    break;
+            }
+            monnaies.Add(NomId, this);
+        }
+
+        internal static Monnaie GetMonnaie(string idName)
+        {
+            monnaies.TryGetValue(idName, out Monnaie ret);
+            return ret;
         }
 
         public override string ToString()

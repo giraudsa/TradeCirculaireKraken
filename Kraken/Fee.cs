@@ -6,9 +6,9 @@ namespace Kraken
     internal class Fee : IComparable<Fee>
     {
       
-        internal int Volume { get; private set; }
+        internal double Volume { get; private set; }
         internal double Frais { get; private set; }
-        internal Fee(int volume)
+        internal Fee(double volume)
         {
             Volume = volume;
         }

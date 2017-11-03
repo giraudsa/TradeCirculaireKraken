@@ -20,7 +20,7 @@ namespace Kraken
         private readonly ushort compteurMax;
         private readonly TimeSpan tempsReductionCompteur;
         private ushort _compteur;
-        private ushort compteur
+        private ushort Compteur
         {
             get
             {
@@ -73,7 +73,7 @@ namespace Kraken
         [MethodImpl(MethodImplOptions.Synchronized)]
         private void Strategie2(ushort poids)
         {
-            while (compteur + poids > compteurMax)
+            while (Compteur + poids > compteurMax)
             {
                 notifieDiminutionCompteur.WaitOne();
             }
@@ -98,8 +98,8 @@ namespace Kraken
         private void DiminueCompteur(object dummy)
         {
             lockCompteur.EnterWriteLock();
-            if(compteur>0)
-                --compteur;
+            if(Compteur>0)
+                --Compteur;
             lockCompteur.ExitWriteLock();
             notifieDiminutionCompteur.Set();
         }
@@ -108,8 +108,8 @@ namespace Kraken
         private void AugmenteCompteur(ushort nombre)
         {
             lockCompteur.EnterWriteLock();
-            if (compteur > 0)
-                compteur = (ushort)(compteur + nombre);
+            if (Compteur > 0)
+                Compteur = (ushort)(Compteur + nombre);
             lockCompteur.ExitWriteLock();
         }
     }

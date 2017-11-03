@@ -7,20 +7,23 @@ namespace Kraken
 {
     internal class Profondeur
     {
+
+        //EURUSD : Base = EURO, Quote = USD
         private Monnaie monnaieDeBase;
         private Monnaie monnaieDeQuote;
 
 
-        private List<Position> PositionsAchatBase { get; } = new List<Position>();
-        private List<Position> PositionsVenteBase { get; } = new List<Position>();
+        private List<PositionAchatBase> PositionsAchatBase { get; } = new List<PositionAchatBase>();
+        private List<PositionVenteBase> PositionsVenteBase { get; } = new List<PositionVenteBase>();
         internal Profondeur(Monnaie monnaieDeBase, Monnaie monnaieDeQuote)
         {
             this.monnaieDeBase = monnaieDeBase;
             this.monnaieDeQuote = monnaieDeQuote;
         }
 
-        internal void MetAJour(string idName)
+        internal void MetAJour(string idName, ValeurEchange ve)
         {
+            //TODO : affiner les frais
             var json = Site.client.GetOrderBook(idName);
             var jsonResult =(JsonObject)((JsonObject)json["result"])[idName];
             var jsonAsks = (JsonArray)jsonResult["asks"];
@@ -29,11 +32,11 @@ namespace Kraken
             PositionsVenteBase.Clear();
             foreach (JsonArray jsonAsk in jsonAsks)
             {
-                PositionsAchatBase.Add(new Position(jsonAsk, monnaieDeBase, monnaieDeQuote));
+                PositionsAchatBase.Add(new PositionAchatBase(jsonAsk, monnaieDeBase, monnaieDeQuote));
             }
             foreach (JsonArray jsonBid in jsonBids)
             {
-                PositionsVenteBase.Add(new Position(jsonBid, monnaieDeBase, monnaieDeQuote));
+                PositionsVenteBase.Add(new PositionVenteBase(jsonBid, monnaieDeBase, monnaieDeQuote));
             }
         }
 
@@ -84,7 +87,7 @@ namespace Kraken
 
         internal List<Position> PositionsVente(Monnaie monnaieAVendre)
         {
-            return monnaieAVendre == monnaieDeBase ? PositionsVenteBase : PositionsAchatBase;
+            return monnaieAVendre == monnaieDeBase ? PositionsVenteBase.ConvertAll(x => (Position)x) : PositionsAchatBase.ConvertAll(x => (Position)x);
         }
         internal List<Position> PositionsAchat(Monnaie monnaieAchetee)
         {

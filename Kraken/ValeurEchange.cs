@@ -10,6 +10,8 @@ namespace Kraken
 {
     class ValeurEchange
     {
+
+        //EURUSD : Base = EURO, Quote = USD
         internal string IdName { get; }
         internal string Name { get; }
         internal Monnaie MonnaieDeBase { get; }
@@ -55,10 +57,10 @@ namespace Kraken
 
         private void MetAJourProfondeur()
         {
-            Profondeur.MetAJour(IdName);
+            Profondeur.MetAJour(IdName, this);
         }
 
-        private Fee GetFee(int volume)
+        internal Fee GetFee(double volume)
         {
             return Fees.WeakPredecessor(new Fee(volume));
         }
@@ -71,7 +73,6 @@ namespace Kraken
         {
             return base.ToString() + " " + Name;
         }
-
         internal Richesse GetRichesseToTrade(Monnaie m1, int i)
         {
             List<Position> l = Profondeur.PositionsVente(m1);
@@ -83,10 +84,9 @@ namespace Kraken
             }
             return new Richesse(qtte, m1);
         }
-
         internal void MetAJour()
         {
-            Profondeur.MetAJour(IdName);
+            Profondeur.MetAJour(IdName, this);
         }
 
         internal Richesse RichesseApresTrade(Richesse richesseAvantTrade)

@@ -6,28 +6,31 @@ using System.Threading.Tasks;
 using Jayrock.Json;
 using System.Threading;
 using System.Runtime.CompilerServices;
+using static Kraken.Monnaie;
+using C5;
 
 namespace Kraken
 {
     class Site
     {
+
         internal static KrakenClient client = new KrakenClient();
+        private InterchangableBiKeyDictionnary<Monnaie, ValeurEchange> BaseEtQuoteToVe { get; }
+        private System.Collections.Generic.HashSet<Monnaie> MonnaieTradable { get; } = new System.Collections.Generic.HashSet<Monnaie>();
+        private System.Collections.Generic.HashSet<Monnaie> MonnaieTradableEURUSD { get; } = new System.Collections.Generic.HashSet<Monnaie>();
+        internal List<ValeurEchange> Pairs { get; } = new List<ValeurEchange>();
 
         private Dictionary<Monnaie, Richesse> gains = new Dictionary<Monnaie, Richesse>();
         private Dictionary<Monnaie, Richesse> gainsFee = new Dictionary<Monnaie, Richesse>();
-        private List<TradeCirculaire> transactions = new List<TradeCirculaire>();
-        private List<TradeCirculaire> transactionsFee = new List<TradeCirculaire>();
-        private InterchangableBiKeyDictionnary<Monnaie, ValeurEchange> BaseEtQuoteToVe { get; }
-        private HashSet<Monnaie> monnaieTradable { get; } = new HashSet<Monnaie>();
-        internal List<ValeurEchange> pairs { get; } = new List<ValeurEchange>();
-        internal Dictionary<string, Monnaie> monnaies { get; }
+        private List<AnomalieTrade> transactions = new List<AnomalieTrade>();
+        private List<AnomalieTrade> transactionsFee = new List<AnomalieTrade>();
 
         internal void WriteGains()
         {
             lock (gains)
             {
                 if (gains.Count == 0) Console.WriteLine("Rien de gagné jusqu'à présent :(");
-                foreach(Richesse richesse in gains.Values)
+                foreach (Richesse richesse in gains.Values)
                 {
                     Console.WriteLine(richesse);
                 }
@@ -39,7 +42,7 @@ namespace Kraken
             lock (transactions)
             {
                 if (transactions.Count == 0) Console.WriteLine("pas de transaction jusqu'à présent :(");
-                foreach (TradeCirculaire trade in transactions)
+                foreach (AnomalieTrade trade in transactions)
                 {
                     Console.WriteLine(trade);
                 }
@@ -51,7 +54,7 @@ namespace Kraken
             lock (transactionsFee)
             {
                 if (transactionsFee.Count == 0) Console.WriteLine("pas de transaction jusqu'à présent :(");
-                foreach (TradeCirculaire trade in transactionsFee)
+                foreach (AnomalieTrade trade in transactionsFee)
                 {
                     Console.WriteLine(trade);
                 }
@@ -70,80 +73,135 @@ namespace Kraken
             }
         }
 
-        private Timer metAJour;
-        private TimeSpan refreshPooling = new TimeSpan(0, 2, 0);//2 min
-
         internal Site()
         {
             BaseEtQuoteToVe = new InterchangableBiKeyDictionnary<Monnaie, ValeurEchange>();
             var requeteMonnaies = client.GetActiveAssets();
             var listeMonnaies = (JsonObject)requeteMonnaies["result"];
-            monnaies = new Dictionary<string, Monnaie>();
             foreach (string key in listeMonnaies.Names)
             {
-                monnaies.Add(key, new Monnaie(key, (JsonObject)listeMonnaies[key]));
+                new Monnaie(key, (JsonObject)listeMonnaies[key]);
             }
             var requeteValeursEchanges = client.GetAssetPairs();
             var valeursEchanges = (JsonObject)requeteValeursEchanges["result"];
             Parallel.ForEach(valeursEchanges.Names.Cast<string>(), (key) =>//foreach (string key in valeursEchanges.Names)
             {
-                var valeurEchange = (JsonObject)valeursEchanges[key];
-                Monnaie monnaieDeBase = GetMonnaie((string)valeurEchange["base"]);
-                Monnaie monnaieDeQuote = GetMonnaie((string)valeurEchange["quote"]);
-                Monnaie feeVolumeMonnaie = GetMonnaie((string)valeurEchange["fee_volume_currency"]);
-                var ve = new ValeurEchange(key, monnaieDeBase, monnaieDeQuote, feeVolumeMonnaie, valeurEchange);
-                if (!ve.FeesMaker.IsEmpty)
+                if (!key.Contains(".d"))
                 {
-                    AddDictionnaire(monnaieDeBase, monnaieDeQuote, ve);
+                    var valeurEchange = (JsonObject)valeursEchanges[key];
+                    Monnaie monnaieDeBase = GetMonnaie((string)valeurEchange["base"]);
+                    Monnaie monnaieDeQuote = GetMonnaie((string)valeurEchange["quote"]);
+                    Monnaie feeVolumeMonnaie = GetMonnaie((string)valeurEchange["fee_volume_currency"]);
+                    var ve = new ValeurEchange(key, monnaieDeBase, monnaieDeQuote, feeVolumeMonnaie, valeurEchange);
+                    if (!ve.FeesMaker.IsEmpty)
+                    {
+                        AddDictionnaire(monnaieDeBase, monnaieDeQuote, ve);
+                    }
                 }
             });
-            metAJour = new Timer(TrouveMeilleurEchange, true, new TimeSpan(0), refreshPooling);
-
+            Parallel.ForEach(MonnaieTradable, (monnaie) =>
+            {
+                if(BaseEtQuoteToVe.ContainsKeys(monnaie, EURO) && BaseEtQuoteToVe.ContainsKeys(monnaie, USD))
+                {
+                    MonnaieTradableEURUSD.Add(monnaie);
+                }
+            });
         }
 
         [MethodImpl(MethodImplOptions.Synchronized)]
         private void AddDictionnaire(Monnaie mbase, Monnaie quote, ValeurEchange ve)
         {
             BaseEtQuoteToVe.Add(mbase, quote, ve);
-            pairs.Add(ve);
-            monnaieTradable.Add(mbase);
-            monnaieTradable.Add(quote);
+            Pairs.Add(ve);
+            MonnaieTradable.Add(mbase);
+            MonnaieTradable.Add(quote);
         }
 
         internal void MetAJour()
         {
-            Parallel.ForEach(pairs, (pair) =>
+            Parallel.ForEach(Pairs, (pair) =>
             {
-                pair.MetAJour();
+                if(pair.MonnaieDeQuote == EURO || pair.MonnaieDeQuote == USD)
+                    pair.MetAJour();
             });
         }
 
         internal Monnaie GetMonnaie(string idName)
         {
-            Monnaie ret = null;
-            monnaies.TryGetValue(idName, out ret);
+            return Monnaie.GetMonnaie(idName);
+        }
+
+        internal List<TradePivot> TrouveMeilleurEchangeEURUSD(Richesse dispoEuro, Richesse dispoUSD)
+        {
+            List<TradePivot> ret = new List<TradePivot>();
+            foreach(Monnaie monnaiePivot in MonnaieTradableEURUSD)
+            {
+                if (BaseEtQuoteToVe.TryGetValue(EURO, monnaiePivot, out ValeurEchange veEURO) && BaseEtQuoteToVe.TryGetValue(USD, monnaiePivot, out ValeurEchange veUSD))
+                {
+                    TradePivot bestTrade = MeilleurEchangeDepuis(dispoEuro, veEURO, veUSD, monnaiePivot);
+                    if (bestTrade == null) bestTrade = MeilleurEchangeDepuis(dispoUSD, veEURO, veUSD, monnaiePivot);
+                    if (bestTrade != null) ret.Add(bestTrade);
+                }
+            }
             return ret;
         }
 
-        internal void TrouveMeilleurEchange(object boolMetAJour)
+        private static TradePivot MeilleurEchangeDepuis( Richesse dispo, ValeurEchange veEURO, ValeurEchange veUSD, Monnaie monnaiePivot)
+        {
+            Monnaie monnaieInitiale = dispo.Monnaie; // EURO ou USD
+            var newTradePivot = monnaieInitiale == EURO ? TradePivot.newTradeEurUsd : TradePivot.newTradeUsdEur;
+            ValeurEchange valeurEchangeInitiale = monnaieInitiale == EURO ? veEURO : veUSD;
+            ValeurEchange valeurEchangeFinale = monnaieInitiale == EURO ? veUSD : veEURO;
+
+            TradePivot tmp = null;
+            Richesse richesseToTrade = new Richesse(0, monnaieInitiale);
+            Richesse etape;
+            TradePivot bestTrade = newTradePivot(richesseToTrade, veEURO, veUSD);
+            int i = 0, j = 0;
+            while (tmp == null || tmp.Gain > bestTrade.Gain)
+            {
+                if (tmp != null)
+                    bestTrade = tmp;
+                etape = TrouveProchaineEtape(monnaieInitiale, monnaiePivot, valeurEchangeInitiale, valeurEchangeFinale, ref i, ref j);
+                richesseToTrade = etape < dispo ? etape : dispo;
+                tmp = newTradePivot(richesseToTrade, veEURO, veUSD);
+            }
+            if (bestTrade.Gain.Quantite > 0)
+                return bestTrade;
+            return null;
+        }
+
+        private static Richesse TrouveProchaineEtape(Monnaie monnaieInitiale, Monnaie monnaiePivot, ValeurEchange valeurEchangeInitiale, ValeurEchange valeurEchangeFinale, ref int i, ref int j)
+        {
+            Richesse etapeSensNaturelle = valeurEchangeInitiale.GetRichesseToTrade(monnaieInitiale, i);
+            Richesse etapeSensInverse = valeurEchangeInitiale.RichesseAvantTrade(valeurEchangeFinale.GetRichesseToTrade(monnaiePivot, j));
+            if(etapeSensNaturelle < etapeSensInverse)
+            {
+                ++i;
+                return etapeSensNaturelle;
+            }
+            ++j;
+            return etapeSensInverse;
+        }
+
+        internal void TrouveMeilleurEchangeCirculaire(object boolMetAJour)
         {
             try
             {
                 CycliqueTripleKeyDictionary<Monnaie, TradeCirculaire> dicoCyclesPossibles = new CycliqueTripleKeyDictionary<Monnaie, TradeCirculaire>();
                 if ((bool)boolMetAJour)
                     MetAJour();
-                foreach (var m1 in monnaieTradable)
+                foreach (var m1 in MonnaieTradable)
                 {
-                    foreach (var m2 in monnaieTradable)
+                    foreach (var m2 in MonnaieTradable)
                     {
                         if (m2 == m1)
                             continue;
-                        foreach (var m3 in monnaieTradable)
+                        foreach (var m3 in MonnaieTradable)
                         {
                             if (m3 == m1 || m3 == m2)
                                 continue;
-                            TradeCirculaire tmp;
-                            if (dicoCyclesPossibles.TryGetValue(m1, m2, m3, out tmp)) //deja calculé
+                            if (dicoCyclesPossibles.TryGetValue(m1, m2, m3, out TradeCirculaire tmp)) //deja calculé
                                 continue;
                             tmp = CalculTradeCirculaire(m1, m2, m3);
                             dicoCyclesPossibles.Add(m1, m2, m3, tmp);
@@ -158,16 +216,16 @@ namespace Kraken
             }
         }
 
-        private void ExecuteTrade(IEnumerable<TradeCirculaire> trades)
+        internal void ExecuteTrade(IEnumerable<AnomalieTrade> trades)
         {
             Console.Out.WriteLine("Mise à jour de " + DateTime.UtcNow.ToShortTimeString());
-            foreach (TradeCirculaire trade in trades)
+            foreach (AnomalieTrade trade in trades)
             {
                 if (trade != null && trade.Gain.Quantite > 0)
                 {
                     AjouteGain(trade.Gain, gains);
                     AjouteTrade(trade, transactions);
-                    if(trade.GainFee.Quantite > 0)
+                    if (trade.GainFee.Quantite > 0)
                     {
                         AjouteGain(trade.GainFee, gainsFee);
                         AjouteTrade(trade, transactionsFee);
@@ -176,7 +234,7 @@ namespace Kraken
             }
         }
 
-        private void AjouteTrade(TradeCirculaire trade, List<TradeCirculaire> liste)
+        private void AjouteTrade(AnomalieTrade trade, List<AnomalieTrade> liste)
         {
             lock (liste)
             {
@@ -188,8 +246,7 @@ namespace Kraken
         {
             lock (dico)
             {
-                Richesse dejaLa = null;
-                if (!dico.TryGetValue(gain.Monnaie, out dejaLa))
+                if (!dico.TryGetValue(gain.Monnaie, out Richesse  dejaLa))
                     dico.Add(gain.Monnaie, gain);
                 else dico[gain.Monnaie] = dejaLa + gain;
             }
@@ -197,35 +254,34 @@ namespace Kraken
 
         private TradeCirculaire CalculTradeCirculaire(Monnaie m1, Monnaie m2, Monnaie m3)
         {
-            ValeurEchange ve1, ve2, ve3;
-            if (!BaseEtQuoteToVe.TryGetValue(m1, m2, out ve1)
-                || !BaseEtQuoteToVe.TryGetValue(m2, m3, out ve2)
-                || !BaseEtQuoteToVe.TryGetValue(m3, m1, out ve3))
+            if (!BaseEtQuoteToVe.TryGetValue(m1, m2, out ValeurEchange ve12)
+                || !BaseEtQuoteToVe.TryGetValue(m2, m3, out ValeurEchange ve23)
+                || !BaseEtQuoteToVe.TryGetValue(m3, m1, out ValeurEchange ve31))
                 return null;
-            TradeCirculaire partantDeM1 = CalculTradeCirculaireEnPartantDe(m1, ve1, ve2, ve3, TradeCirculaire.constructeurFromM1);
-            TradeCirculaire partantDeM2 = CalculTradeCirculaireEnPartantDe(m2, ve1, ve2, ve3, TradeCirculaire.constructeurFromM2);
-            TradeCirculaire partantDeM3 = CalculTradeCirculaireEnPartantDe(m3, ve1, ve2, ve3, TradeCirculaire.constructeurFromM3);
+            TradeCirculaire partantDeM1 = CalculTradeCirculaireEnPartantDe(m1, ve12, ve12, ve23, ve31, TradeCirculaire.constructeurFromM1);
+            TradeCirculaire partantDeM2 = CalculTradeCirculaireEnPartantDe(m2, ve23, ve12, ve23, ve31, TradeCirculaire.constructeurFromM2);
+            TradeCirculaire partantDeM3 = CalculTradeCirculaireEnPartantDe(m3, ve31, ve12, ve23, ve31, TradeCirculaire.constructeurFromM3);
 
             TradeCirculaire best = partantDeM1;
-            if (best.Gain < partantDeM2.Gain)
+            if (best.Gain< partantDeM2.Gain)
                 best = partantDeM2;
-            if (best.Gain < partantDeM3.Gain)
+            if (best.Gain< partantDeM3.Gain)
                 best = partantDeM3;
             return best;
         }
 
-        private TradeCirculaire CalculTradeCirculaireEnPartantDe(Monnaie m, ValeurEchange ve1, ValeurEchange ve2, ValeurEchange ve3,
+        private TradeCirculaire CalculTradeCirculaireEnPartantDe(Monnaie m, ValeurEchange veInitiale, ValeurEchange ve12, ValeurEchange ve23, ValeurEchange ve31,
             Func<Richesse, ValeurEchange, ValeurEchange, ValeurEchange, TradeCirculaire> constructeurDepuisEtape)
         {
             TradeCirculaire tmp = null;
-            TradeCirculaire bestTrade = constructeurDepuisEtape(new Richesse(0, m), ve1, ve2, ve3);
+            TradeCirculaire bestTrade = constructeurDepuisEtape(new Richesse(0, m), ve12, ve23, ve31);
             int i = 0;
-            while (tmp == null || tmp.Gain > bestTrade.Gain)
+            while (tmp == null || tmp.Gain> bestTrade.Gain)
             {
                 if (tmp != null)
                     bestTrade = tmp;
-                Richesse etape = ve1.GetRichesseToTrade(m, i++);//TODO c'est pas forcement ve1
-                tmp = constructeurDepuisEtape(etape, ve1, ve2, ve3);
+                Richesse etape = veInitiale.GetRichesseToTrade(m, i++);
+                tmp = constructeurDepuisEtape(etape, ve12, ve23, ve31);
             }
             return bestTrade;
         }

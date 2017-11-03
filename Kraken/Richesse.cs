@@ -6,9 +6,8 @@ using System.Threading.Tasks;
 
 namespace Kraken
 {
-    internal class Richesse
+    internal class Richesse : IComparable<Richesse>
     {
-
         public static Richesse operator +(Richesse r1, Richesse r2)
         {
             if (r1.Monnaie != r2.Monnaie)
@@ -52,6 +51,12 @@ namespace Kraken
             Monnaie = monnaie;
         }
 
+        public Richesse(Richesse avantEchange)
+        {
+            Quantite = avantEchange.Quantite;
+            Monnaie = avantEchange.Monnaie;
+        }
+
         internal double PourcentageDeGain(Richesse other)
         {
             if (other.Monnaie != Monnaie)
@@ -62,6 +67,13 @@ namespace Kraken
         public override string ToString()
         {
             return Quantite + " " + Monnaie.Nom;
+        }
+
+        public int CompareTo(Richesse other)
+        {
+            if (other.Monnaie != Monnaie)
+                throw new NotSupportedException(string.Format("impossible de comparer des {0} avec des {1}", Monnaie.Nom, other.Monnaie.Nom));
+            return Quantite.CompareTo(other.Quantite);
         }
     }
 }

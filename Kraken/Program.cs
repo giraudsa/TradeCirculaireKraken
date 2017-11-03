@@ -18,13 +18,14 @@ namespace Kraken
             Console.WriteLine("appuyez sur entrer pour continuer");
             Console.ReadLine();
             Console.WriteLine("c'est parti !");
-            Site site = new Site();
+            var portefeuille = new Portefeuille();
+            var site = portefeuille.Site;
             string temp = "";
             while (!"stop".Equals(temp)) {
                 switch (temp)
                 {
                     case "gains":
-                       site.WriteGains();
+                        site.WriteGains();
                         break;
                     case "gainsFee":
                         site.WriteGainsWithFee();
