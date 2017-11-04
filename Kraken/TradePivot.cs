@@ -104,7 +104,7 @@ namespace Kraken
 
         public override string ToString()
         {
-            return richesseUsdToTrade + " correspondant à " + Investissement + " --> " + EtapePivot + " --> " + ApresTrade + " gain : " + Gain + " soit " + PourcentageGain + " %";
+            return richesseUsdToTrade + " correspondant à " + Investissement + " --> " + EtapePivot + " --> " + ApresTrade + " gain : " + Gain + " soit " + PourcentageGain * 100 + " %";
         }
     }
 
@@ -121,7 +121,7 @@ namespace Kraken
 
         public override string ToString()
         {
-            return  Investissement + " --> " + EtapePivot + " --> " + richesseUsdApresTrade + " correspondant à " + ApresTrade + " gain : " + Gain + " soit " + PourcentageGain + " %";
+            return  Investissement + " --> " + EtapePivot + " --> " + richesseUsdApresTrade + " correspondant à " + ApresTrade + " gain : " + Gain + " soit " + PourcentageGain * 100 + " %";
         }
 
 

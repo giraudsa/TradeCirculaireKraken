@@ -23,7 +23,7 @@ namespace Kraken
             }
         }
 
-        internal Richesse GainFee => new Richesse(Investissement.Quantite * (PourcentageGain - 0.25 * nombreDeTrade) / 100, Investissement.Monnaie);
+        internal Richesse GainFee => new Richesse(Investissement.Quantite * (PourcentageGain - 0.0025 * nombreDeTrade), Investissement.Monnaie);
 
         internal double PourcentageGain
         {
