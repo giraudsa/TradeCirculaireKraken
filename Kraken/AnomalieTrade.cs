@@ -39,5 +39,7 @@ namespace Kraken
         {
             this.nombreDeTrade = nombreDeTrade;
         }
+
+        internal abstract void Execute(Site site);
     }
 }

@@ -46,5 +46,10 @@ namespace Kraken
         {
             return Investissement + " --> " + EtapeM2 + " --> " + EtapeM3 + " --> " + ApresTrade + " gain : " + Gain+ " soit " + PourcentageGain+ " %";
         }
+
+        internal override void Execute(Site site)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

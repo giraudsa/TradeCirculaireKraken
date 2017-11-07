@@ -9,86 +9,28 @@ namespace Kraken
 
         private readonly Monnaie monnaiePivot;
         protected Richesse EtapePivot { get; set; }
+        protected readonly ValeurEchange veEuro;
+        protected readonly ValeurEchange veUSD;
 
-        /*private SimpleMarketTrade tradeBuy; 
-        private SimpleMarketTrade tradeSell;
+        protected abstract ValeurEchange GetValeurEchangeBuyPivot();
+        protected abstract ValeurEchange GetValeurEchangeSellPivot();
 
-        private Richesse richesseConsommee;
-        private Richesse richesseProduite;
 
-        private Richesse _richesseConsommeeEnEuro;
-        private Richesse _richesseProduiteEnEuro;
-        private Richesse _augmentationDeRichesseEnEuro;
-        private object lockPourcentageDeGain = new object();
-        private bool pourcentageDeGainCalcule = false;
-        private double _pourcentageDeGain;
-        private Richesse RichesseConsommeeEnEuro
-        {
-            get
-            {
-                lock (_richesseConsommeeEnEuro)
-                {
-                    if (_richesseConsommeeEnEuro == null)
-                    {
-                        _richesseConsommeeEnEuro = richesseConsommee.Monnaie == Monnaie.EURO ? richesseConsommee : Portefeuille.ConvertUsdEnEuro(richesseConsommee);
-                    }
-                }
-                return _richesseConsommeeEnEuro;
-                
-            }
-        }
-        private Richesse RichesseProduiteEnEuro
-        {
-            get
-            {
-                lock (_richesseProduiteEnEuro)
-                {
-                    if (_richesseProduiteEnEuro == null)
-                    {
-                        _richesseProduiteEnEuro = richesseProduite.Monnaie == Monnaie.EURO ? richesseProduite : Portefeuille.ConvertUsdEnEuro(richesseProduite);
-                    }
-                }
-                return _richesseConsommeeEnEuro;
-
-            }
-        }
-        private Richesse AugmentationDeRichesseEnEuro
-        {
-            get
-            {
-                lock (_augmentationDeRichesseEnEuro)
-                {
-                    if (_augmentationDeRichesseEnEuro == null)
-                    {
-                        _augmentationDeRichesseEnEuro = RichesseProduiteEnEuro - RichesseConsommeeEnEuro;
-                    }
-                }
-                return _augmentationDeRichesseEnEuro;
-
-            }
-        }
-
-        public double PourcentageDeGain
-        {
-            get
-            {
-                lock (lockPourcentageDeGain)
-                {
-                    if(!pourcentageDeGainCalcule)
-                    {
-                        _pourcentageDeGain = RichesseConsommeeEnEuro != null ? AugmentationDeRichesseEnEuro / RichesseConsommeeEnEuro : 0;
-                        pourcentageDeGainCalcule = true;
-                    }
-                }
-                return _pourcentageDeGain;
-            }
-        }
-        */
         internal TradePivot(ValeurEchange veEURO, ValeurEchange veUSD) : base(2)
         {
+            this.veEuro = veEURO;
+            this.veUSD = veUSD;
             monnaiePivot = veEURO.MonnaieDeQuote == Monnaie.EURO ? veEURO.MonnaieDeBase : veEURO.MonnaieDeQuote;
         }
 
+        internal override void Execute(Site site)
+        {
+            Richesse pivotAvecMarge = EtapePivot * (1 - 0.0025);
+            SimpleMarketTrade tradeBuyPivot = new SimpleMarketTrade(GetValeurEchangeBuyPivot(), OrderType.buy, pivotAvecMarge);
+            SimpleMarketTrade tradeSellPivot = new SimpleMarketTrade(GetValeurEchangeSellPivot(), OrderType.sell, pivotAvecMarge);
+            bool ok = tradeBuyPivot.Execute(site);
+            if (ok) tradeSellPivot.Execute(site);
+        }
     }
 
     internal class TradeUsdEur : TradePivot
@@ -105,6 +47,16 @@ namespace Kraken
         public override string ToString()
         {
             return richesseUsdToTrade + " correspondant à " + Investissement + " --> " + EtapePivot + " --> " + ApresTrade + " gain : " + Gain + " soit " + PourcentageGain * 100 + " %";
+        }
+
+        protected override ValeurEchange GetValeurEchangeBuyPivot()
+        {
+            return veUSD;
+        }
+
+        protected override ValeurEchange GetValeurEchangeSellPivot()
+        {
+            return veEuro;
         }
     }
 
@@ -124,6 +76,14 @@ namespace Kraken
             return  Investissement + " --> " + EtapePivot + " --> " + richesseUsdApresTrade + " correspondant à " + ApresTrade + " gain : " + Gain + " soit " + PourcentageGain * 100 + " %";
         }
 
+        protected override ValeurEchange GetValeurEchangeBuyPivot()
+        {
+            return veEuro;
+        }
 
+        protected override ValeurEchange GetValeurEchangeSellPivot()
+        {
+            return veUSD;
+        }
     }
 }

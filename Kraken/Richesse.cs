@@ -42,6 +42,10 @@ namespace Kraken
 
             return r1.Quantite < r2.Quantite;
         }
+        public static Richesse operator *(Richesse r, double d)
+        {
+            return new Richesse(r.Quantite, r.Monnaie);
+        }
 
         internal double Quantite { get; }
         internal Monnaie Monnaie { get; }
@@ -49,12 +53,6 @@ namespace Kraken
         {
             Quantite = qtte;
             Monnaie = monnaie;
-        }
-
-        public Richesse(Richesse avantEchange)
-        {
-            Quantite = avantEchange.Quantite;
-            Monnaie = avantEchange.Monnaie;
         }
 
         internal double PourcentageDeGain(Richesse other)

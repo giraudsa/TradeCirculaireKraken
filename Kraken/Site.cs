@@ -49,6 +49,11 @@ namespace Kraken
             }
         }
 
+        internal JsonObject AddOrder(KrakenOrder k)
+        {
+            return client.AddOrder(k);
+        }
+
         internal void WriteTransactionsFee()
         {
             lock (transactionsFee)
@@ -221,15 +226,12 @@ namespace Kraken
             Console.Out.WriteLine("Mise à jour de " + DateTime.UtcNow.ToShortTimeString());
             foreach (AnomalieTrade trade in trades)
             {
-                if (trade != null && trade.Gain.Quantite > 0)
+                if (trade != null && trade.GainFee.Quantite > 0)
                 {
-                    AjouteGain(trade.Gain, gains);
-                    AjouteTrade(trade, transactions);
-                    if (trade.GainFee.Quantite > 0)
-                    {
-                        AjouteGain(trade.GainFee, gainsFee);
-                        AjouteTrade(trade, transactionsFee);
-                    }
+                    AjouteGain(trade.GainFee, gainsFee);
+                    AjouteTrade(trade, transactionsFee);
+                    trade.Execute(this);
+                    break;
                 }
             }
         }

@@ -19,7 +19,7 @@ namespace Kraken
         private string _url;
         private int _version;
         private string _key;
-        private string _secret;
+        private string _secret ;
         //RateGate is was taken from http://www.jackleitch.net/2010/10/better-rate-limiting-with-dot-net/
         private DDOSProtection ddosProtection;
 
@@ -177,6 +177,7 @@ namespace Kraken
                         {
                             if (response.StatusCode != HttpStatusCode.InternalServerError)
                             {
+                                Console.Write(sr.ReadToEnd());
                                 throw;
                             }
                             return (JsonObject)JsonConvert.Import(sr);
@@ -435,7 +436,7 @@ namespace Kraken
         /// mf = free margin = equity - initial margin (maximum margin available to open new positions)
         /// ml = margin level = (equity / initial margin) * 100
         /// </returns>
-        public JsonObject GetTradeBalance(string aclass, string asset)
+        public JsonObject GetTradeBalance(string aclass, string asset = "ZUSD")
         {
             string reqs = "";
             if (string.IsNullOrEmpty(aclass))

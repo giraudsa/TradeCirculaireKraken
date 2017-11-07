@@ -53,10 +53,17 @@ namespace Kraken
 
         private void MetAJourRichesses()
         {
-            //TODO passer par l'API pour avoir les vraies valeures du portefeuille
             _richesses.Clear();
-            _richesses.Add(Monnaie.USD, new Richesse(1000, Monnaie.USD));
-            _richesses.Add(Monnaie.EURO, new Richesse(1000, Monnaie.EURO));
+            JsonObject json = Site.client.GetBalance();
+            if (((JsonArray)json["error"]).Count == 0)
+                throw new Exception("erreur a la récupération des richesses du portefeuille");
+            var balances = (JsonObject)json["result"];
+            foreach (string key in balances.Names)
+            {
+                Monnaie monnaie = Monnaie.GetMonnaie(key);
+                double qtte = double.Parse((string)balances[key]);
+                _richesses.Add(monnaie, new Richesse(qtte, monnaie));
+            }
         }
 
         private void MetAJourTauxEuroUsd()
