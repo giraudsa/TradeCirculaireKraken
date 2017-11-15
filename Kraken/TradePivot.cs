@@ -28,8 +28,24 @@ namespace Kraken
             Richesse pivotAvecMarge = EtapePivot * (1 - 0.0025);
             SimpleMarketTrade tradeBuyPivot = new SimpleMarketTrade(GetValeurEchangeBuyPivot(), OrderType.buy, pivotAvecMarge);
             SimpleMarketTrade tradeSellPivot = new SimpleMarketTrade(GetValeurEchangeSellPivot(), OrderType.sell, pivotAvecMarge);
-            bool ok = tradeBuyPivot.Execute(site);
-            if (ok) tradeSellPivot.Execute(site);
+            bool ok1, ok2 = false;
+            try
+            {
+                ok1 = tradeBuyPivot.Execute(site);
+                int compteur = 0;
+                while (ok1 && !ok2 || compteur++ < 5)
+                    ok2 = tradeSellPivot.Execute(site);
+                if (ok1 && !ok2)
+                {
+                    Portefeuille.EnvoyerMail(new System.Net.Mail.MailAddress("giraudsa@hotmail.com"), "probleme dans le deuxieme trades Kraken", "http://www.kraken.com/login on est coincé avec " + pivotAvecMarge.ToString());
+                    throw new Exception();
+                }
+            }
+            catch (Exception ex)
+            {
+                Portefeuille.EnvoyerMail(new System.Net.Mail.MailAddress("giraudsa@hotmail.com"), "probleme dans les trades Kraken", "http://www.kraken.com/login je ne sais pas ou on en est");
+                throw;
+            }
         }
     }
 

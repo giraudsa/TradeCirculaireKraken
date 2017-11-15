@@ -2,11 +2,11 @@
 
 namespace Kraken
 {
-    internal abstract class AnomalieTrade
+    internal abstract class AnomalieTrade : IComparable<AnomalieTrade>
     {
         protected int nombreDeTrade;
         public Richesse Investissement { get; protected set; }
-        public Richesse ApresTrade { get; protected set; }
+        public Richesse ApresTrade { get; protected set; }//l'investissement et aprestrade sont en euro
         internal Richesse Gain
         {
             get
@@ -41,5 +41,10 @@ namespace Kraken
         }
 
         internal abstract void Execute(Site site);
+
+        public int CompareTo(AnomalieTrade other)
+        {
+            return GainFee.CompareTo(other.GainFee);
+        }
     }
 }

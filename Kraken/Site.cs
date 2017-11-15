@@ -8,6 +8,7 @@ using System.Threading;
 using System.Runtime.CompilerServices;
 using static Kraken.Monnaie;
 using C5;
+using System.Collections.Concurrent;
 
 namespace Kraken
 {
@@ -19,6 +20,11 @@ namespace Kraken
         private System.Collections.Generic.HashSet<Monnaie> MonnaieTradable { get; } = new System.Collections.Generic.HashSet<Monnaie>();
         private System.Collections.Generic.HashSet<Monnaie> MonnaieTradableEURUSD { get; } = new System.Collections.Generic.HashSet<Monnaie>();
         internal List<ValeurEchange> Pairs { get; } = new List<ValeurEchange>();
+
+        internal JsonObject GetOpenOrders(int userref)
+        {
+            return client.GetOpenOrders(true, userref.ToString());
+        }
 
         private Dictionary<Monnaie, Richesse> gains = new Dictionary<Monnaie, Richesse>();
         private Dictionary<Monnaie, Richesse> gainsFee = new Dictionary<Monnaie, Richesse>();
@@ -89,24 +95,33 @@ namespace Kraken
             }
             var requeteValeursEchanges = client.GetAssetPairs();
             var valeursEchanges = (JsonObject)requeteValeursEchanges["result"];
+            var exceptions = new ConcurrentQueue<Exception>();
             Parallel.ForEach(valeursEchanges.Names.Cast<string>(), (key) =>//foreach (string key in valeursEchanges.Names)
             {
-                if (!key.Contains(".d"))
+                try
                 {
-                    var valeurEchange = (JsonObject)valeursEchanges[key];
-                    Monnaie monnaieDeBase = GetMonnaie((string)valeurEchange["base"]);
-                    Monnaie monnaieDeQuote = GetMonnaie((string)valeurEchange["quote"]);
-                    Monnaie feeVolumeMonnaie = GetMonnaie((string)valeurEchange["fee_volume_currency"]);
-                    var ve = new ValeurEchange(key, monnaieDeBase, monnaieDeQuote, feeVolumeMonnaie, valeurEchange);
-                    if (!ve.FeesMaker.IsEmpty)
+                    if (!key.Contains(".d"))
                     {
-                        AddDictionnaire(monnaieDeBase, monnaieDeQuote, ve);
+                        var valeurEchange = (JsonObject)valeursEchanges[key];
+                        Monnaie monnaieDeBase = GetMonnaie((string)valeurEchange["base"]);
+                        Monnaie monnaieDeQuote = GetMonnaie((string)valeurEchange["quote"]);
+                        Monnaie feeVolumeMonnaie = GetMonnaie((string)valeurEchange["fee_volume_currency"]);
+                        var ve = new ValeurEchange(key, monnaieDeBase, monnaieDeQuote, feeVolumeMonnaie, valeurEchange);
+                        if (!ve.FeesMaker.IsEmpty)
+                        {
+                            AddDictionnaire(monnaieDeBase, monnaieDeQuote, ve);
+                        }
                     }
                 }
+                catch(Exception ex)
+                {
+                    exceptions.Enqueue(ex);
+                }
             });
+            if (exceptions.Count > 0) throw new AggregateException(exceptions);
             Parallel.ForEach(MonnaieTradable, (monnaie) =>
             {
-                if(BaseEtQuoteToVe.ContainsKeys(monnaie, EURO) && BaseEtQuoteToVe.ContainsKeys(monnaie, USD))
+                if (BaseEtQuoteToVe.ContainsKeys(monnaie, EURO) && BaseEtQuoteToVe.ContainsKeys(monnaie, USD))
                 {
                     MonnaieTradableEURUSD.Add(monnaie);
                 }
@@ -124,11 +139,20 @@ namespace Kraken
 
         internal void MetAJour()
         {
+            var exceptions = new ConcurrentQueue<Exception>();
             Parallel.ForEach(Pairs, (pair) =>
             {
-                if(pair.MonnaieDeQuote == EURO || pair.MonnaieDeQuote == USD)
-                    pair.MetAJour();
+                try
+                {
+                    if (pair.MonnaieDeQuote == EURO || pair.MonnaieDeQuote == USD)
+                        pair.MetAJour();
+                }
+                catch(Exception ex)
+                {
+                    exceptions.Enqueue(ex);
+                }
             });
+            if (exceptions.Count > 0) throw new AggregateException(exceptions);
         }
 
         internal Monnaie GetMonnaie(string idName)
@@ -136,10 +160,10 @@ namespace Kraken
             return Monnaie.GetMonnaie(idName);
         }
 
-        internal List<TradePivot> TrouveMeilleurEchangeEURUSD(Richesse dispoEuro, Richesse dispoUSD)
+        internal TreeSet<TradePivot> TrouveMeilleurEchangeEURUSD(Richesse dispoEuro, Richesse dispoUSD)
         {
-            List<TradePivot> ret = new List<TradePivot>();
-            foreach(Monnaie monnaiePivot in MonnaieTradableEURUSD)
+            TreeSet<TradePivot> ret = new TreeSet<TradePivot>();
+            foreach (Monnaie monnaiePivot in MonnaieTradableEURUSD)
             {
                 if (BaseEtQuoteToVe.TryGetValue(EURO, monnaiePivot, out ValeurEchange veEURO) && BaseEtQuoteToVe.TryGetValue(USD, monnaiePivot, out ValeurEchange veUSD))
                 {
@@ -151,7 +175,7 @@ namespace Kraken
             return ret;
         }
 
-        private static TradePivot MeilleurEchangeDepuis( Richesse dispo, ValeurEchange veEURO, ValeurEchange veUSD, Monnaie monnaiePivot)
+        private static TradePivot MeilleurEchangeDepuis(Richesse dispo, ValeurEchange veEURO, ValeurEchange veUSD, Monnaie monnaiePivot)
         {
             Monnaie monnaieInitiale = dispo.Monnaie; // EURO ou USD
             var newTradePivot = monnaieInitiale == EURO ? TradePivot.newTradeEurUsd : TradePivot.newTradeUsdEur;
@@ -163,7 +187,7 @@ namespace Kraken
             Richesse etape;
             TradePivot bestTrade = newTradePivot(richesseToTrade, veEURO, veUSD);
             int i = 0, j = 0;
-            while (tmp == null || tmp.Gain > bestTrade.Gain)
+            while (tmp == null || tmp.GainFee > bestTrade.GainFee)
             {
                 if (tmp != null)
                     bestTrade = tmp;
@@ -171,7 +195,7 @@ namespace Kraken
                 richesseToTrade = etape < dispo ? etape : dispo;
                 tmp = newTradePivot(richesseToTrade, veEURO, veUSD);
             }
-            if (bestTrade.Gain.Quantite > 0)
+            if (bestTrade.GainFee.Quantite > 0)
                 return bestTrade;
             return null;
         }
@@ -180,7 +204,7 @@ namespace Kraken
         {
             Richesse etapeSensNaturelle = valeurEchangeInitiale.GetRichesseToTrade(monnaieInitiale, i);
             Richesse etapeSensInverse = valeurEchangeInitiale.RichesseAvantTrade(valeurEchangeFinale.GetRichesseToTrade(monnaiePivot, j));
-            if(etapeSensNaturelle < etapeSensInverse)
+            if (etapeSensNaturelle < etapeSensInverse)
             {
                 ++i;
                 return etapeSensNaturelle;
@@ -213,7 +237,7 @@ namespace Kraken
                         }
                     }
                 }
-                ExecuteTrade(dicoCyclesPossibles.Values);
+                ExecuteTrade(dicoCyclesPossibles.Values.FirstOrDefault());//TODO a trier pour prendre le plus rentable
             }
             catch (Exception e)
             {
@@ -221,18 +245,16 @@ namespace Kraken
             }
         }
 
-        internal void ExecuteTrade(IEnumerable<AnomalieTrade> trades)
+        internal void ExecuteTrade(AnomalieTrade trade)
         {
             Console.Out.WriteLine("Mise à jour de " + DateTime.UtcNow.ToShortTimeString());
-            foreach (AnomalieTrade trade in trades)
+            Console.Out.WriteLine(trade.ToString());
+            Console.Out.WriteLine(trade.GainFee);
+            if (trade != null && trade.GainFee.Quantite > 0)
             {
-                if (trade != null && trade.GainFee.Quantite > 0)
-                {
-                    AjouteGain(trade.GainFee, gainsFee);
-                    AjouteTrade(trade, transactionsFee);
-                    trade.Execute(this);
-                    break;
-                }
+                AjouteGain(trade.GainFee, gainsFee);
+                AjouteTrade(trade, transactionsFee);
+                trade.Execute(this);
             }
         }
 
@@ -248,7 +270,7 @@ namespace Kraken
         {
             lock (dico)
             {
-                if (!dico.TryGetValue(gain.Monnaie, out Richesse  dejaLa))
+                if (!dico.TryGetValue(gain.Monnaie, out Richesse dejaLa))
                     dico.Add(gain.Monnaie, gain);
                 else dico[gain.Monnaie] = dejaLa + gain;
             }
@@ -265,9 +287,9 @@ namespace Kraken
             TradeCirculaire partantDeM3 = CalculTradeCirculaireEnPartantDe(m3, ve31, ve12, ve23, ve31, TradeCirculaire.constructeurFromM3);
 
             TradeCirculaire best = partantDeM1;
-            if (best.Gain< partantDeM2.Gain)
+            if (best.Gain < partantDeM2.Gain)
                 best = partantDeM2;
-            if (best.Gain< partantDeM3.Gain)
+            if (best.Gain < partantDeM3.Gain)
                 best = partantDeM3;
             return best;
         }
@@ -278,7 +300,7 @@ namespace Kraken
             TradeCirculaire tmp = null;
             TradeCirculaire bestTrade = constructeurDepuisEtape(new Richesse(0, m), ve12, ve23, ve31);
             int i = 0;
-            while (tmp == null || tmp.Gain> bestTrade.Gain)
+            while (tmp == null || tmp.Gain > bestTrade.Gain)
             {
                 if (tmp != null)
                     bestTrade = tmp;

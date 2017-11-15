@@ -509,7 +509,7 @@ namespace Kraken
             string reqs = string.Format("&trades={0}", true);
             
             if (!string.IsNullOrEmpty(userref))
-                reqs += string.Format("&userref={1}", userref);
+                reqs += string.Format("&userref={0}", userref);
             
             return QueryPrivate("OpenOrders", 1, reqs) as JsonObject;
         }

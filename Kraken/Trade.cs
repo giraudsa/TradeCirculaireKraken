@@ -13,6 +13,7 @@ namespace Kraken
         protected readonly ValeurEchange pair;
         protected readonly OrderType action; //buy or sell
         protected readonly Richesse objetRichesse;
+        protected int userref = (int)DateTime.UtcNow.Ticks;
 
         internal Trade(ValeurEchange pair, OrderType action, Richesse objetRichesse)
         {
@@ -22,6 +23,17 @@ namespace Kraken
         }
 
         internal abstract bool Execute(Site site);
+
+        internal bool IsOK(Site site)
+        {
+            var tr = site.GetOpenOrders(userref);
+            if (((JsonArray)tr["error"]).Count > 0)
+                return false;
+            else if (((JsonObject)((JsonObject)tr["result"])["open"]).Names.Count == 0)
+                return false;
+            else
+                return true;
+        }
 
     }
 
@@ -44,9 +56,18 @@ namespace Kraken
                 Pair = pair.IdName,
                 Type = type,
                 OrderType = KrakenOrderType.market.ToString(),
-                Volume = volume
+                Volume = volume,
+                Userref = userref.ToString()
             };
-            JsonObject json = site.AddOrder(k);
+            JsonObject json;
+            try
+            {
+                 json = site.AddOrder(k);
+            }
+            catch (Exception ex)
+            {
+                return IsOK(site);
+            }
             if (((JsonArray)json["error"]).Count == 0)
             {
                 return true;
